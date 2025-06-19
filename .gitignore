@@ -1,0 +1,45 @@
+# Dataset files
+*.h5
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.tar.gz
+*.bin
+*.png
+*.pth
+
+# CIFAR-100 specific
+CIFAR100/data/
+CIFAR100/data/cifar-100-python/
+
+# Data directories
+data/
+**/data/
+
+# Model checkpoints
+checkpoints/
+*.onnx
+*.tflite
+
+# Archives
+*.zip
+*.tar.gz
+
+# System files
+.DS_Store
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.coverage
+**/.tox/
+**/__init__.py
+
+# Project specific
+src/dataset/
