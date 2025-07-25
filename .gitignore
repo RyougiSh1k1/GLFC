@@ -42,4 +42,6 @@ checkpoints/
 **/__init__.py
 
 # Project specific
-src/dataset/
+CIFAR-100/dataset/
+EMNIST/dataset/
+fig/
