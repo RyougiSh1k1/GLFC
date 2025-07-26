@@ -11,9 +11,36 @@ from ProxyServer import *
 from mini_imagenet import *
 from tiny_imagenet import *
 from option import args_parser
+import logging
+from datetime import datetime
+
+# Configure logger
+def setup_logger(log_file_path):
+    """Set up logger to write to both file and console"""
+    logger = logging.getLogger('GLFC')
+    logger.setLevel(logging.INFO)
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.INFO)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    # Formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 # Define the modified functions
-def local_train_with_classes(clients, index, model_g, task_id, model_old, ep_g, old_client):
+def local_train_with_classes(clients, index, model_g, task_id, model_old, ep_g, old_client, logger):
     clients[index].model = copy.deepcopy(model_g)
     
     # Set current classes based on client's task assignment
@@ -29,12 +56,14 @@ def local_train_with_classes(clients, index, model_g, task_id, model_old, ep_g, 
         clients[index].beforeTrain(task_id, 1)
 
     clients[index].update_new_set()
-    print(f'Client {index} training on classes: {clients[index].current_class}')
+    logger.info(f'Client {index} training on classes: {clients[index].current_class}')
+    logger.info(f'Client {index} signal: {clients[index].signal}')
+    
     clients[index].train(ep_g, model_old)
     local_model = clients[index].model.state_dict()
     proto_grad = clients[index].proto_grad_sharing()
 
-    print('*' * 60)
+    logger.info('*' * 60)
 
     return local_model, proto_grad
 
@@ -55,13 +84,14 @@ def participant_exemplar_storing_with_classes(clients, num, model_g, old_client,
                 clients[index].beforeTrain(task_id, 1)
             clients[index].update_new_set()
 
+# Main execution
 args = args_parser()
 
 ## parameters for learning
 feature_extractor = resnet18_cbam()
-num_clients = 10  # Changed from args.num_clients to 10
+num_clients = 10  # Fixed 10 clients
 old_client_0 = []
-old_client_1 = [i for i in range(10)]  # Changed to 10 clients
+old_client_1 = [i for i in range(10)]
 new_client = []
 models = []
 
@@ -140,17 +170,38 @@ for i in range(10):
 ## the proxy server
 proxy_server = proxyServer(args.device, args.learning_rate, initial_classes, feature_extractor, encode_model, train_transform)
 
-## training log
+## training log setup
 output_dir = osp.join('./training_log', args.method, 'seed' + str(args.seed))
 if not osp.exists(output_dir):
     os.system('mkdir -p ' + output_dir)
-if not osp.exists(output_dir):
-    os.mkdir(output_dir)
 
+# Setup both file output and logger
 out_file = open(osp.join(output_dir, 'log_tar_' + str(classes_per_task) + '_10clients.txt'), 'w')
 log_str = 'method_{}, task_size_{}, num_clients_10, learning_rate_{}'.format(args.method, classes_per_task, args.learning_rate)
 out_file.write(log_str + '\n')
 out_file.flush()
+
+# Setup logger
+log_file_path = osp.join(output_dir, f'training_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+logger = setup_logger(log_file_path)
+logger.info(f"Starting GLFC training with configuration:")
+logger.info(f"Method: {args.method}")
+logger.info(f"Task size: {classes_per_task}")
+logger.info(f"Number of clients: 10")
+logger.info(f"Learning rate: {args.learning_rate}")
+logger.info(f"Seed: {args.seed}")
+logger.info(f"Device: {args.device}")
+logger.info(f"Batch size: {args.batch_size}")
+logger.info(f"Memory size: {args.memory_size}")
+logger.info(f"Local epochs: {args.epochs_local}")
+logger.info(f"Global epochs: {args.epochs_global}")
+
+# Log client class assignments
+logger.info("\nClient class assignments:")
+for client_id, tasks in client_classes.items():
+    logger.info(f"Client {client_id}:")
+    for task_idx, task_classes in enumerate(tasks):
+        logger.info(f"  Task {task_idx}: {task_classes}")
 
 classes_learned = initial_classes  # Start with all classes for CIFAR-100
 old_task_id = -1
@@ -168,40 +219,42 @@ for ep_g in range(args.epochs_global):
         old_client_1 = random.sample([i for i in range(overall_client)], int(overall_client * 0.9))
         old_client_0 = [i for i in range(overall_client) if i not in old_client_1]
         num_clients = 10
-        print(old_client_0)
+        logger.info(f"Old clients (group 0): {old_client_0}")
+        logger.info(f"Old clients (group 1): {old_client_1}")
 
     if task_id != old_task_id and old_task_id != -1 and task_id < num_tasks:
         # No need to increment classes_learned since model already handles all 100 classes
-        # Just update the model architecture if needed
-        pass
+        logger.info(f"Moving to task {task_id}")
     
-    print('federated global round: {}, task_id: {}'.format(ep_g, task_id))
+    logger.info(f'Federated global round: {ep_g}, task_id: {task_id}')
 
     w_local = []
     clients_index = random.sample(range(num_clients), min(args.local_clients, num_clients))
-    print('select part of clients to conduct local training')
-    print(clients_index)
+    logger.info(f'Selected clients for local training: {clients_index}')
 
     for c in clients_index:
         # Use the modified local_train function
-        local_model, proto_grad = local_train_with_classes(models, c, model_g, task_id, model_old, ep_g, old_client_0)
+        logger.info(f"Training client {c}")
+        local_model, proto_grad = local_train_with_classes(models, c, model_g, task_id, model_old, ep_g, old_client_0, logger)
         w_local.append(local_model)
         if proto_grad != None:
+            logger.info(f"Client {c} shared {len(proto_grad)} prototype gradients")
             for grad_i in proto_grad:
                 pool_grad.append(grad_i)
 
     ## every participant save their current training data as exemplar set
-    print('every participant start updating their exemplar set and old model...')
+    logger.info('Every participant starting to update their exemplar set and old model...')
     participant_exemplar_storing_with_classes(models, num_clients, model_g, old_client_0, task_id, clients_index)
-    print('updating finishes')
+    logger.info('Updating finished')
 
-    print('federated aggregation...')
+    logger.info('Federated aggregation...')
     w_g_new = FedAvg(w_local)
     w_g_last = copy.deepcopy(model_g.state_dict())
     
     model_g.load_state_dict(w_g_new)
 
     proxy_server.model = copy.deepcopy(model_g)
+    logger.info(f"Proxy server processing {len(pool_grad)} gradients")
     proxy_server.dataloader(pool_grad)
 
     # Evaluate on all classes seen so far
@@ -209,6 +262,12 @@ for ep_g in range(args.epochs_global):
     log_str = 'Task: {}, Round: {} Accuracy = {:.2f}%'.format(task_id, ep_g, acc_global)
     out_file.write(log_str + '\n')
     out_file.flush()
-    print('classification accuracy of global model at round %d: %.3f \n' % (ep_g, acc_global))
+    
+    logger.info(f'Classification accuracy of global model at round {ep_g}: {acc_global:.3f}%')
+    logger.info('-' * 80)
 
     old_task_id = task_id
+
+# Close file and final log
+out_file.close()
+logger.info("Training completed successfully!")

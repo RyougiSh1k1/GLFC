@@ -37,31 +37,48 @@ class proxyServer:
         if len(pool_grad) != 0:
             self.reconstruction()
             self.monitor_dataset.getTestData(self.new_set, self.new_set_label)
-            self.monitor_loader = DataLoader(dataset=self.monitor_dataset, shuffle=True, batch_size=64, drop_last=True)
-            self.last_perf = 0
-            self.best_model_1 = self.best_model_2
-
-        cur_perf = self.monitor()
-        print(cur_perf)
-        if cur_perf >= self.best_perf:
-            self.best_perf = cur_perf
-            self.best_model_2 = copy.deepcopy(self.model)
+            
+            # Check if we have data before creating dataloader
+            if len(self.monitor_dataset) > 0:
+                self.monitor_loader = DataLoader(dataset=self.monitor_dataset, shuffle=True, batch_size=64, drop_last=True)
+                self.last_perf = 0
+                self.best_model_1 = self.best_model_2
+                
+                cur_perf = self.monitor()
+                print(f"Monitor performance: {cur_perf}")
+                if cur_perf >= self.best_perf:
+                    self.best_perf = cur_perf
+                    self.best_model_2 = copy.deepcopy(self.model)
+            else:
+                print("No data in monitor dataset, skipping monitoring")
+                self.best_model_1 = self.best_model_2
+                self.best_model_2 = copy.deepcopy(self.model)
+        else:
+            print("No gradients in pool, skipping reconstruction")
+            # Even with no gradients, we might want to update best models
+            if self.best_model_2 is None:
+                self.best_model_2 = copy.deepcopy(self.model)
 
     def model_back(self):
         return [self.best_model_1, self.best_model_2]
 
     def monitor(self):
+        if not hasattr(self, 'monitor_loader') or self.monitor_loader is None:
+            return 0.0
+            
         self.model.eval()
         correct, total = 0, 0
-        for step, (imgs, labels) in enumerate(self.monitor_loader):
-            imgs, labels = imgs.cuda(self.device), labels.cuda(self.device)
-            with torch.no_grad():
-                outputs = self.model(imgs)
-            predicts = torch.max(outputs, dim=1)[1]
-            correct += (predicts.cpu() == labels.cpu()).sum()
-            total += len(labels)
-        accuracy = 100 * correct / total
         
+        with torch.no_grad():
+            for step, (imgs, labels) in enumerate(self.monitor_loader):
+                imgs, labels = imgs.cuda(self.device), labels.cuda(self.device)
+                outputs = self.model(imgs)
+                predicts = torch.max(outputs, dim=1)[1]
+                correct += (predicts.cpu() == labels.cpu()).sum()
+                total += len(labels)
+        
+        accuracy = 100 * correct / total if total > 0 else 0
+        self.model.train()
         return accuracy
 
     def gradient2label(self):
@@ -79,7 +96,8 @@ class proxyServer:
         tp = transforms.Compose([transforms.ToPILImage()])
         pool_label = self.gradient2label()
         pool_label = np.array(pool_label)
-        # print(pool_label)
+        print(f"Reconstructing for labels: {np.unique(pool_label)}")
+        
         class_ratio = np.zeros((1, 100))
 
         for i in pool_label:
@@ -92,7 +110,7 @@ class proxyServer:
                 
                 grad_index = np.where(pool_label == label_i)
                 for j in range(len(grad_index[0])):
-                    # print('reconstruct_{}, {}-th'.format(label_i, j))
+                    print(f'Reconstructing class {label_i}, sample {j+1}/{len(grad_index[0])}')
                     grad_truth_temp = self.pool_grad[grad_index[0][j]]
 
                     dummy_data = torch.randn((1, 3, 32, 32)).to(self.device).requires_grad_(True)
@@ -122,14 +140,13 @@ class proxyServer:
                         current_loss = closure().item()
 
                         if iters == self.Iteration - 1:
-                            print(current_loss)
+                            print(f"Final reconstruction loss: {current_loss:.6f}")
 
                         if iters >= self.Iteration - self.num_image:
                             dummy_data_temp = np.asarray(tp(dummy_data.clone().squeeze(0).cpu()))
                             augmentation.append(dummy_data_temp)
 
-                self.new_set.append(augmentation)
-                self.new_set_label.append(label_i)
-
-
-    
+                if len(augmentation) > 0:
+                    self.new_set.append(augmentation)
+                    self.new_set_label.append(label_i)
+                    print(f"Generated {len(augmentation)} samples for class {label_i}")
