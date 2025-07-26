@@ -21,25 +21,15 @@ class Proxy_Data():
 
     def getTestData(self, new_set, new_set_label):
         datas, labels = [], []
-        self.TestData, self.TestLabels = np.array([]), np.array([])
-        
+        self.TestData, self.TestLabels = [], []
         if len(new_set) != 0 and len(new_set_label) != 0:
-            # Convert each exemplar list to numpy array
+            datas = [exemplar for exemplar in new_set]
             for i in range(len(new_set)):
-                exemplar_data = np.array(new_set[i])
-                if exemplar_data.ndim == 3:  # If shape is (n, 32, 32, 3)
-                    datas.append(exemplar_data)
-                elif exemplar_data.ndim == 4:  # If already (1, n, 32, 32, 3)
-                    datas.append(exemplar_data.squeeze(0))
-                    
-                length = len(exemplar_data) if exemplar_data.ndim == 3 else exemplar_data.shape[1]
+                length = len(datas[i])
                 labels.append(np.full((length), new_set_label[i]))
 
         if len(datas) > 0:  # Only concatenate if there's data
             self.TestData, self.TestLabels = self.concatenate(datas, labels)
-        else:
-            self.TestData = np.empty((0, 32, 32, 3), dtype=np.uint8)
-            self.TestLabels = np.empty((0,), dtype=np.int64)
 
     def getTestItem(self, index):
         img, target = Image.fromarray(self.TestData[index]), self.TestLabels[index]
@@ -54,9 +44,10 @@ class Proxy_Data():
             return self.getTestItem(index)
 
     def __len__(self):
-        if isinstance(self.TestData, np.ndarray) and self.TestData.size > 0:
-            return self.TestData.shape[0]
-        elif isinstance(self.TestData, list) and len(self.TestData) > 0:
+        # Fixed: Check if TestData is a numpy array or list
+        if isinstance(self.TestData, np.ndarray):
+            return self.TestData.shape[0] if self.TestData.size > 0 else 0
+        elif isinstance(self.TestData, list):
             return len(self.TestData)
         else:
             return 0
