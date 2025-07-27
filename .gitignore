@@ -44,4 +44,6 @@ checkpoints/
 # Project specific
 CIFAR-100/dataset/
 EMNIST/dataset/
+TinyImageNet/dataset/
+US-States/dataset/
 fig/

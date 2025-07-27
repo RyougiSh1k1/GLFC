@@ -1,0 +1,37 @@
+2025-07-27 05:31:22 - emnist_training - INFO - ==================================================
+2025-07-27 05:31:22 - emnist_training - INFO - Configuration:
+2025-07-27 05:31:22 - emnist_training - INFO - dataset: emnist
+2025-07-27 05:31:22 - emnist_training - INFO - method: glfc
+2025-07-27 05:31:22 - emnist_training - INFO - iid_level: 4
+2025-07-27 05:31:22 - emnist_training - INFO - numclass: 4
+2025-07-27 05:31:22 - emnist_training - INFO - img_size: 28
+2025-07-27 05:31:22 - emnist_training - INFO - device: 0
+2025-07-27 05:31:22 - emnist_training - INFO - batch_size: 128
+2025-07-27 05:31:22 - emnist_training - INFO - task_size: 4
+2025-07-27 05:31:22 - emnist_training - INFO - seed: 2021
+2025-07-27 05:31:22 - emnist_training - INFO - memory_size: 500
+2025-07-27 05:31:22 - emnist_training - INFO - epochs_local: 30
+2025-07-27 05:31:22 - emnist_training - INFO - learning_rate: 2.0
+2025-07-27 05:31:22 - emnist_training - INFO - num_clients: 8
+2025-07-27 05:31:22 - emnist_training - INFO - local_clients: 4
+2025-07-27 05:31:22 - emnist_training - INFO - epochs_global: 36
+2025-07-27 05:31:22 - emnist_training - INFO - tasks_global: 6
+2025-07-27 05:31:22 - emnist_training - INFO - ==================================================
+2025-07-27 05:31:22 - emnist_training - INFO - Loading EMNIST dataset...
+2025-07-27 05:31:23 - emnist_training - INFO - Dataset loaded. Total classes: 62
+2025-07-27 05:31:23 - emnist_training - INFO - Assigning classes to clients...
+2025-07-27 05:31:23 - emnist_training - INFO - Client 0 assigned tasks: [[2, 38, 23, 21], [7, 17, 32, 16], [6, 18, 29, 12], [1, 10, 41, 26], [59, 0, 11, 3], [9, 15, 22, 19]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 1 assigned tasks: [[46, 25, 26, 59], [38, 49, 48, 33], [30, 39, 28, 23], [43, 27, 44, 34], [35, 31, 41, 29], [45, 8, 56, 22]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 2 assigned tasks: [[43, 57, 14, 58], [2, 53, 55, 6], [59, 42, 4, 49], [0, 45, 3, 41], [60, 61, 52, 46], [56, 1, 5, 54]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 3 assigned tasks: [[12, 5, 2, 3], [19, 11, 0, 10], [42, 36, 13, 4], [60, 6, 25, 31], [15, 14, 61, 1], [16, 20, 22, 18]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 4 assigned tasks: [[19, 29, 31, 44], [37, 46, 24, 36], [43, 39, 40, 27], [22, 33, 28, 20], [45, 35, 32, 23], [26, 56, 30, 25]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 5 assigned tasks: [[24, 36, 5, 52], [43, 58, 59, 3], [34, 47, 2, 45], [46, 39, 61, 0], [54, 57, 41, 13], [42, 53, 51, 48]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 6 assigned tasks: [[41, 2, 5, 3], [17, 16, 58, 24], [11, 20, 61, 0], [8, 38, 21, 13], [35, 39, 12, 15], [25, 18, 7, 23]]
+2025-07-27 05:31:23 - emnist_training - INFO - Client 7 assigned tasks: [[37, 40, 41, 18], [7, 23, 29, 33], [27, 39, 58, 24], [22, 44, 43, 36], [28, 9, 34, 38], [25, 49, 15, 26]]
+2025-07-27 05:31:23 - emnist_training - INFO - Initializing client models...
+2025-07-27 05:31:23 - emnist_training - INFO - Starting federated training...
+2025-07-27 05:31:23 - emnist_training - INFO - Total rounds: 36, Tasks per client: 6
+2025-07-27 05:31:23 - emnist_training - INFO - Federated global round: 0, Task ID: 0
+2025-07-27 05:31:23 - emnist_training - INFO - Selected clients for training: [3, 6, 4, 5]
+2025-07-27 05:31:33 - emnist_training - INFO - Client 3 - Training on classes: [12, 5, 2, 3], Signal: True
+2025-07-27 05:37:29 - emnist_training - INFO - Client 3 - Training completed in 356.58 seconds
