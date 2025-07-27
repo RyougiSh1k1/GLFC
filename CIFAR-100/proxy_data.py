@@ -40,7 +40,7 @@ class Proxy_Data():
         return img, target
 
     def __getitem__(self, index):
-        if len(self.TestData) > 0:
+        if len(self) > 0:
             return self.getTestItem(index)
 
     def __len__(self):
