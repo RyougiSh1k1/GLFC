@@ -39,11 +39,9 @@ class Proxy_Data():
         return img, target
 
     def __getitem__(self, index):
-        if self.TestData != []:
-            return self.getTestItem(index)
+        return self.getTestItem(index)
 
     def __len__(self):
-        if self.TestData != []:
-            return self.TestData.shape[0]
+        return self.TestData.shape[0]
 
 

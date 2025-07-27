@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from torch.autograd import Variable
 import torch.optim as optim
 from myNetwork import *
-from iCIFAR100 import iCIFAR100
+from iEMNIST import iEMNIST
 from torch.utils.data import DataLoader
 import random
 from Fed_utils import * 
@@ -39,9 +39,13 @@ class GLFC_model:
         self.numclass = numclass  # Initialize with the provided numclass
         self.learned_numclass = 0
         self.learned_classes = []
-        self.transform = transforms.Compose([#transforms.Resize(img_size),
-                                             transforms.ToTensor(),
-                                            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))])
+        
+        # Modified transforms for EMNIST (grayscale)
+        self.transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))  # Single channel for grayscale
+        ])
+        
         self.old_model = None
         self.train_dataset = train_set
         self.start = True
@@ -69,15 +73,15 @@ class GLFC_model:
             # Use client-specific classes if available
             if hasattr(self, 'current_class') and self.current_class is not None:
                 # Current class is already set by the main training loop
-                # For CIFAR-100, we need to ensure numclass covers all possible classes (0-99)
-                self.numclass = 100  # Set to total number of classes in CIFAR-100
+                # For EMNIST byclass, we have 62 classes total
+                self.numclass = 62  # Set to total number of classes in EMNIST byclass
             else:
                 # Fallback to original behavior
                 self.numclass = self.task_size * (task_id_new + 1)
                 if group != 0:
                     if self.current_class != None:
                         self.last_class = self.current_class
-                    self.current_class = random.sample([x for x in range(self.numclass - self.task_size, self.numclass)], 6)
+                    self.current_class = random.sample([x for x in range(self.numclass - self.task_size, self.numclass)], self.task_size)
                 else:
                     self.last_class = None
 
@@ -113,7 +117,7 @@ class GLFC_model:
         train_loader = DataLoader(dataset=self.train_dataset,
                                   shuffle=True,
                                   batch_size=self.batchsize,
-                                  num_workers=8,
+                                  num_workers=4,  # Reduced for EMNIST
                                   pin_memory=True)
 
         return train_loader
@@ -185,8 +189,10 @@ class GLFC_model:
                 all_label = torch.cat((all_label, labels.long().cpu()), 0)
 
         overall_avg = torch.mean(all_ent).item()
-        print(overall_avg)
-        if overall_avg - self.last_entropy > 1.2:
+        print(f"Entropy: {overall_avg}")
+        
+        # Adjusted threshold for EMNIST
+        if overall_avg - self.last_entropy > 0.8:  # Lower threshold for EMNIST
             res = True
         
         self.last_entropy = overall_avg
@@ -258,7 +264,7 @@ class GLFC_model:
         exemplar = []
         now_class_mean = np.zeros((1, 512))
      
-        for i in range(m):
+        for i in range(min(m, len(images))):  # Ensure we don't exceed available images
             x = class_mean - (now_class_mean + feature_extractor_output) / (i + 1)
             x = np.linalg.norm(x, axis=1)
             index = np.argmin(x)
@@ -272,9 +278,20 @@ class GLFC_model:
             self.exemplar_set[index] = self.exemplar_set[index][:m]
 
     def Image_transform(self, images, transform):
-        data = transform(Image.fromarray(images[0])).unsqueeze(0)
+        # Handle EMNIST grayscale images
+        if len(images[0].shape) == 2:
+            # Already 2D, convert to PIL
+            data = transform(Image.fromarray(images[0].astype(np.uint8), mode='L')).unsqueeze(0)
+        else:
+            # 1D array, reshape to 28x28
+            data = transform(Image.fromarray(images[0].reshape(28, 28).astype(np.uint8), mode='L')).unsqueeze(0)
+            
         for index in range(1, len(images)):
-            data = torch.cat((data, self.transform(Image.fromarray(images[index])).unsqueeze(0)), dim=0)
+            if len(images[index].shape) == 2:
+                img = Image.fromarray(images[index].astype(np.uint8), mode='L')
+            else:
+                img = Image.fromarray(images[index].reshape(28, 28).astype(np.uint8), mode='L')
+            data = torch.cat((data, transform(img).unsqueeze(0)), dim=0)
         return data
 
     def compute_class_mean(self, images, transform):
@@ -288,8 +305,7 @@ class GLFC_model:
         for index in range(len(self.exemplar_set)):
             exemplar=self.exemplar_set[index]
             class_mean, _ = self.compute_class_mean(exemplar, self.transform)
-            class_mean_,_=self.compute_class_mean(exemplar,self.classify_transform)
-            class_mean=(class_mean/np.linalg.norm(class_mean)+class_mean_/np.linalg.norm(class_mean_))/2
+            class_mean=class_mean/np.linalg.norm(class_mean)
             self.class_mean_set.append(class_mean)
 
     def proto_grad_sharing(self):
@@ -303,13 +319,15 @@ class GLFC_model:
     def prototype_mask(self):
         tt = transforms.Compose([transforms.ToTensor()])
         tp = transforms.Compose([transforms.ToPILImage()])
-        iters = 50
+        iters = 30  # Reduced iterations for EMNIST
         criterion = nn.CrossEntropyLoss().to(self.device)
         proto = []
         proto_grad = []
 
         for i in self.current_class:
             images = self.train_dataset.get_image_class(i)
+            if len(images) == 0:
+                continue
             class_mean, feature_extractor_output = self.compute_class_mean(images, self.transform)
             dis = class_mean - feature_extractor_output
             dis = np.linalg.norm(dis, axis=1)
@@ -320,7 +338,13 @@ class GLFC_model:
             self.model.eval()
             data = proto[i]
             label = self.current_class[i]
-            data = Image.fromarray(data)
+            
+            # Handle EMNIST data
+            if len(data.shape) == 2:
+                data = Image.fromarray(data.astype(np.uint8), mode='L')
+            else:
+                data = Image.fromarray(data.reshape(28, 28).astype(np.uint8), mode='L')
+                
             label_np = label
             
             data, label = tt(data), torch.Tensor([label]).long()
